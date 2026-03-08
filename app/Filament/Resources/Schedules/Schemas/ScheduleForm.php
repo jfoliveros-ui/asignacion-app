@@ -4,36 +4,20 @@ namespace App\Filament\Resources\Schedules\Schemas;
 
 use App\Models\Parameter;
 use App\Models\Schedule;
-use Filament\Facades\Filament;
+use App\Services\ScheduleService;
+use Coolsam\Flatpickr\Forms\Components\Flatpickr;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Auth;
 
 class ScheduleForm
 {
     public static function configure(Schema $schema): Schema
     {
-        // Panel / usuario actual
-        $panelId = Filament::getCurrentPanel()?->getId();
-        $email   = Auth::user()?->email;
+        $isAsignacionPanel = ScheduleService::isAsignacionPanel();
+        $fixedAreaId = ScheduleService::getFixedAreaIdForCurrentUser();
 
-        $isAsignacionPanel = $panelId === 'asignacion';
-
-        // Mapa de correos a area_id (panel asignacion)
-        $areaByEmail = [
-            'academica@admin.com'      => 5,
-            'direccion@admin.com'      => 3,
-            'capacitaciones@admin.com' => 6,
-        ];
-
-        // Área fija si el usuario está en el mapa (solo asignacion)
-        $fixedAreaId = ($isAsignacionPanel && isset($areaByEmail[$email]))
-            ? $areaByEmail[$email]
-            : null;
-
-        // Estados bloqueados para edición en panel asignacion
         $lockedStatuses = ['ACEPTADA', 'RECHAZADA', 'CANCELADA'];
 
         return $schema->components([
@@ -43,51 +27,68 @@ class ScheduleForm
                     ->where('type', Parameter::TYPE_SALON)
                     ->orderBy('name')
                     ->pluck('name', 'id')
-                    ->toArray()
-                )
+                    ->toArray())
                 ->searchable()
+                ->preload()
                 ->required()
-                // En panel asignacion: no permitir editar campos distintos a status (solo en EDIT)
                 ->disabled(fn (?Schedule $record) => $isAsignacionPanel && filled($record)),
 
             Select::make('area_id')
                 ->label('Área')
                 ->options(fn () => Parameter::query()
-                        ->where('type', Parameter::TYPE_AREA)
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray()
-                    )
+                    ->where('type', Parameter::TYPE_AREA)
+                    ->orderBy('name')
+                    ->pluck('name', 'id')
+                    ->toArray())
                 ->required()
                 ->default(fn () => $fixedAreaId)
-                // ✅ bloqueado también en CREATE (área fija por usuario)
                 ->disabled(fn () => $isAsignacionPanel && filled($fixedAreaId))
                 ->dehydrated(true),
 
             TextInput::make('nombre')
                 ->label('Nombre solicitante')
                 ->required()
+                ->maxLength(255)
                 ->disabled(fn (?Schedule $record) => $isAsignacionPanel && filled($record)),
 
             TextInput::make('email')
-                ->label('Correo Institucional')
+                ->label('Correo institucional')
                 ->email()
                 ->required()
+                ->maxLength(255)
                 ->disabled(fn (?Schedule $record) => $isAsignacionPanel && filled($record)),
+
+            Flatpickr::make('fechas')
+                ->label('Fechas de solicitud')
+                ->multiplePicker()
+                ->format('Y-m-d')
+                ->displayFormat('d/m/Y')
+                ->required(fn (?Schedule $record) => blank($record))
+                ->visible(fn (?Schedule $record) => blank($record))
+                ->dehydrated(fn (?Schedule $record) => blank($record))
+                ->disabled(fn (?Schedule $record) => $isAsignacionPanel && filled($record))
+                ->minDate(now()->format('Y-m-d'))
+                ->placeholder('Seleccione una o varias fechas'),
 
             DatePicker::make('fecha')
                 ->label('Fecha de solicitud')
-                ->required()
-                ->disabled(fn (?Schedule $record) => $isAsignacionPanel && filled($record)),
+                ->native(false)
+                ->displayFormat('d/m/Y')
+                ->required(fn (?Schedule $record) => filled($record))
+                ->visible(fn (?Schedule $record) => filled($record))
+                ->dehydrated(fn (?Schedule $record) => filled($record))
+                ->disabled(fn (?Schedule $record) => $isAsignacionPanel && filled($record))
+                ->minDate(now()->toDateString()),
 
             Select::make('hora_inicio')
-                ->label('Hora de Inicio Solicitud')
+                ->label('Hora de inicio solicitud')
                 ->required()
                 ->searchable()
+                ->preload()
                 ->options(function () {
                     $stepMinutes = 30;
-
                     $options = [];
+
                     for ($t = 0; $t <= (23 * 60 + 30); $t += $stepMinutes) {
                         $hh = str_pad((string) intdiv($t, 60), 2, '0', STR_PAD_LEFT);
                         $mm = str_pad((string) ($t % 60), 2, '0', STR_PAD_LEFT);
@@ -103,13 +104,14 @@ class ScheduleForm
                 ->disabled(fn (?Schedule $record) => $isAsignacionPanel && filled($record)),
 
             Select::make('hora_fin')
-                ->label('Hora de Final Solicitud')
+                ->label('Hora final solicitud')
                 ->required()
                 ->searchable()
-                // ✅ SOLO bloquear en EDIT del panel asignacion (en CREATE debe permitir)
+                ->preload()
                 ->disabled(fn ($get, ?Schedule $record) => blank($get('hora_inicio')) || ($isAsignacionPanel && filled($record)))
                 ->options(function ($get) {
                     $inicio = $get('hora_inicio');
+
                     if (blank($inicio)) {
                         return [];
                     }
@@ -131,21 +133,24 @@ class ScheduleForm
                 ->formatStateUsing(fn ($state) => $state ? substr((string) $state, 0, 5) : null)
                 ->rule(fn ($get) => function ($attribute, $value, $fail) use ($get) {
                     $inicio = $get('hora_inicio');
+
                     if (blank($inicio) || blank($value)) {
                         return;
                     }
+
                     if ($value <= $inicio) {
                         $fail('La hora final debe ser mayor que la hora inicial.');
                     }
                 }),
 
             TextInput::make('observacion')
-                ->label('Motivo Solicitud')
+                ->label('Motivo solicitud')
                 ->required()
+                ->maxLength(500)
                 ->disabled(fn (?Schedule $record) => $isAsignacionPanel && filled($record)),
 
             Select::make('status')
-                ->label('Estado Solicitud')
+                ->label('Estado solicitud')
                 ->options([
                     'PENDIENTE' => 'Pendiente',
                     'ACEPTADA'  => 'Aceptada',
@@ -154,15 +159,18 @@ class ScheduleForm
                 ])
                 ->default('PENDIENTE')
                 ->required()
-                ->hidden(fn (?Schedule $record) => blank($record)) // ✅ ocultar en CREATE
+                ->hidden(fn (?Schedule $record) => blank($record))
                 ->disableOptionWhen(function (string $value, ?Schedule $record) use ($isAsignacionPanel) {
                     if ($isAsignacionPanel && filled($record)) {
                         return $value !== 'CANCELADA';
                     }
+
                     return false;
                 })
                 ->disabled(function (?Schedule $record) use ($isAsignacionPanel, $lockedStatuses) {
-                    return $isAsignacionPanel && filled($record) && in_array($record->status, $lockedStatuses, true);
+                    return $isAsignacionPanel
+                        && filled($record)
+                        && in_array($record->status, $lockedStatuses, true);
                 }),
         ]);
     }

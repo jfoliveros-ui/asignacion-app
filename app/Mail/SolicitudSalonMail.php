@@ -2,58 +2,39 @@
 
 namespace App\Mail;
 
+use App\Models\Schedule;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use App\Models\Schedule;
-
 
 class SolicitudSalonMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    /**
-     * Create a new message instance.
-     */
     public function __construct(public Schedule $schedule)
     {
         //
     }
-    public function build()
-{
-    return $this->subject('Solicitud de salón registrada')
-        ->markdown('emails.solicitud-salon', [
-            's' => $this->schedule,
-        ]);
-}
-    /**
-     * Get the message envelope.
-     */
+
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Solicitud Salon Mail',
+            subject: 'Solicitud de salón registrada',
         );
     }
 
-    /**
-     * Get the message content definition.
-     */
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.solicitud-salon',
+            view: 'emails.solicitud-salon-html',
+            with: [
+                's' => $this->schedule,
+            ],
         );
     }
 
-    /**
-     * Get the attachments for the message.
-     *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
-     */
     public function attachments(): array
     {
         return [];

@@ -3,43 +3,32 @@
 namespace App\Filament\Resources\Schedules\Pages;
 
 use App\Filament\Resources\Schedules\ScheduleResource;
+use App\Services\ScheduleService;
 use Filament\Resources\Pages\CreateRecord;
-use App\Mail\SolicitudSalonMail;
-use Illuminate\Support\Facades\Mail;
-use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\Model;
 
 class CreateSchedule extends CreateRecord
 {
     protected static string $resource = ScheduleResource::class;
+
+    protected array $createdSchedules = [];
+
+    protected function handleRecordCreation(array $data): Model
+    {
+        $this->createdSchedules = ScheduleService::createMultipleSchedules($data);
+
+        return $this->createdSchedules[0];
+    }
+
     protected function afterCreate(): void
-{
-    $schedule = $this->record->load(['salon', 'area']); // ✅ sin 'user'
-
-    $to = $schedule->email; // ✅ viene del formulario
-
-    if (! empty($to)) {
-        Mail::to($to)
-            ->cc('jassonoliveros123@gmail.com') // CC a la coordinadora
-            ->send(new SolicitudSalonMail($schedule));
+    {
+        ScheduleService::sendCreationEmail($this->createdSchedules);
     }
-}
-    protected function mutateFormDataBeforeCreate(array $data): array
-{
-    $panelId = Filament::getCurrentPanel()?->getId();
-    $email   = \Illuminate\Support\Facades\Auth::user()?->email;
 
-    $areaByEmail = [
-        'academica@admin.com'      => 5,
-        'direccion@admin.com'      => 3,
-        'capacitaciones@admin.com' => 6,
-    ];
-
-    if ($panelId === 'asignacion' && isset($areaByEmail[$email])) {
-        $data['area_id'] = $areaByEmail[$email];
+    protected function getCreatedNotificationTitle(): ?string
+    {
+        return count($this->createdSchedules) > 1
+            ? 'Las solicitudes fueron creadas correctamente.'
+            : 'La solicitud fue creada correctamente.';
     }
-    ScheduleResource::validarChoqueHorario($data);
-    return $data;
-}
-
-
 }
