@@ -17,8 +17,13 @@ class ParameterForm
                 TextInput::make('name')
                 ->label('Valor')
                     ->required(),
+                TextInput::make('notification_email')
+                ->label('Correo notificación salón')
+                    ->email()
+                    ->maxLength(255)
+                    ->placeholder('correo@esap.edu.co'),
                 TextInput::make('meta')
                 ->label('Valor Adicional'),
-            ]);
+                        ]);
     }
 }

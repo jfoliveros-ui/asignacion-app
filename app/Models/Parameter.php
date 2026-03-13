@@ -12,6 +12,7 @@ class Parameter extends Model
     protected $fillable = [
         'type',
         'name',
+        'notification_email',
         'meta',
     ];
 

@@ -244,7 +244,18 @@ class ScheduleService
             ->all();
     }
 
-    public static function sendCreationEmail(iterable $schedules, ?string $cc = 'jassonoliveros123@gmail.com'): void
+    public static function getSalonNotificationEmail(?Schedule $schedule): ?string
+    {
+        if (! $schedule) {
+            return null;
+        }
+
+        $email = $schedule->salon?->notification_email;
+
+        return filled($email) ? $email : null;
+    }
+
+    public static function sendCreationEmail(iterable $schedules): void
     {
         $collection = collect($schedules);
 
@@ -262,16 +273,18 @@ class ScheduleService
 
         $first->fechas_correo = self::formatDatesForEmail($collection);
 
+        $cc = self::getSalonNotificationEmail($first);
+
         $mail = Mail::to($first->email);
 
-        if (! empty($cc)) {
+        if (filled($cc)) {
             $mail->cc($cc);
         }
 
         $mail->send(new SolicitudSalonMail($first));
     }
 
-    public static function sendUpdateEmail(Schedule $schedule, ?string $cc = 'jassonoliveros123@gmail.com'): void
+    public static function sendUpdateEmail(Schedule $schedule): void
     {
         $schedule = $schedule->fresh()->load(['salon', 'area']);
 
@@ -279,13 +292,8 @@ class ScheduleService
             return;
         }
 
-        $mail = Mail::to($schedule->email);
-
-        if (! empty($cc)) {
-            $mail->cc($cc);
-        }
-
-        $mail->send(new SolicitudSalonActualizadaMail($schedule));
+        Mail::to($schedule->email)
+            ->send(new SolicitudSalonActualizadaMail($schedule));
     }
 
     public static function shouldNotifyAfterEdit(Schedule $schedule, array $fieldsToNotify = ['status', 'fecha', 'hora_inicio', 'hora_fin']): bool
