@@ -13,8 +13,8 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     overflow: auto;
     background: linear-gradient(315deg,
-            rgba(15, 45, 79, 0.95) 0%,
-            rgba(20, 74, 138, 0.90) 35%,
+            rgba(194, 215, 240, 0.95) 0%,
+            rgba(80, 159, 255, 0.9) 35%,
             rgba(51, 102, 204, 0.85) 70%,
             rgba(91, 143, 217, 0.80) 100%);
     animation: gradient 15s ease infinite;
