@@ -24,7 +24,7 @@ class ScheduleResource extends Resource
     protected static ?string $model = Schedule::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::CalendarDays;
-
+protected static ?int $navigationSort = 3;
     protected static ?string $recordTitleAttribute = 'nombre';
 
     public static function form(Schema $schema): Schema
@@ -85,7 +85,10 @@ class ScheduleResource extends Resource
             'edit'   => EditSchedule::route('/{record}/edit'),
         ];
     }
-
+public static function getNavigationBadge(): ?string
+{
+    return static::getModel()::count();
+}
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
